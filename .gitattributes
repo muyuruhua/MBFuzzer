@@ -1,0 +1,2 @@
+mbfuzzer_artifact/Docker/hivemq-4.24.0.zip filter=lfs diff=lfs merge=lfs -text
+mbfuzzer_artifact/Docker/vernemq.tar.gz filter=lfs diff=lfs merge=lfs -text
