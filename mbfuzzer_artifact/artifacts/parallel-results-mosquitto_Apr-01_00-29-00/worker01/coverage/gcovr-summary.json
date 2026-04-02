@@ -1,0 +1,9 @@
+{
+  "branch_percent": 25.82,
+  "branch_covered": 2789,
+  "branch_total": 10803,
+  "line_percent": 32.11,
+  "line_covered": 4375,
+  "line_total": 13625,
+  "_source": "coverage.xml (fallback)"
+}

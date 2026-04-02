@@ -1,0 +1,106 @@
+nohup: ignoring input
+[parallel] Network 'mqtt_network' subnet: 172.199.0.0/16
+[parallel] Host bridge IP: 172.199.0.1
+[parallel] ═══════════════════════════════════════════════════════════════
+[parallel] MBFuzzer Parallel Mosquitto Campaign
+[parallel] ═══════════════════════════════════════════════════════════════
+[parallel] Image         : mbfuzzer-mosquitto-gcov:1.6.8 (gcov=1)
+[parallel] Runs          : 3
+[parallel] Parallelism   : 3
+[parallel] Timeout       : 1800s (30m)
+[parallel] Docker network: mqtt_network
+[parallel] Host bridge IP: 172.199.0.1
+[parallel] Python        : /home/ckt/miniconda3/bin/python
+[parallel] Artifact root : /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09
+[parallel] ═══════════════════════════════════════════════════════════════
+[parallel] Resource allocation:
+[parallel]   worker01 → IP=172.199.0.11  server=1884  cache=1885
+[parallel]   worker02 → IP=172.199.0.12  server=1894  cache=1895
+[parallel]   worker03 → IP=172.199.0.13  server=1904  cache=1905
+[parallel] ────────────────────────────────────────────────────────────
+[parallel] Launching worker01
+[parallel]   broker IP    : 172.199.0.11
+[parallel]   server_module: host:1884
+[parallel]   cache_broker : host:1885
+[parallel]   output dir   : /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker01/outputs
+[parallel]   container    : mosquitto-worker01-Mar-31_19-32-09
+[parallel] ────────────────────────────────────────────────────────────
+[parallel] Launching worker02
+[parallel]   broker IP    : 172.199.0.12
+[parallel]   server_module: host:1894
+[parallel]   cache_broker : host:1895
+[parallel]   output dir   : /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker02/outputs
+[parallel]   container    : mosquitto-worker02-Mar-31_19-32-09
+[parallel] ────────────────────────────────────────────────────────────
+[parallel] Launching worker03
+[parallel]   broker IP    : 172.199.0.13
+[parallel]   server_module: host:1904
+[parallel]   cache_broker : host:1905
+[parallel]   output dir   : /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker03/outputs
+[parallel]   container    : mosquitto-worker03-Mar-31_19-32-09
+[parallel]   worker02 source prepared → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker02/mbfuzzer
+[parallel]   worker03 source prepared → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker03/mbfuzzer
+[parallel]   conf template → mosquitto-v168.conf
+[parallel]   bridge address → 172.199.0.1:1894
+[parallel]   conf template → mosquitto-v168.conf
+[parallel]   bridge address → 172.199.0.1:1904
+[parallel]   worker01 source prepared → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker01/mbfuzzer
+[parallel]   conf template → mosquitto-v168.conf
+[parallel]   bridge address → 172.199.0.1:1884
+[parallel]   container 'mosquitto-worker02-Mar-31_19-32-09' started
+[parallel]     Docker ID  : ef4feffe81b4
+[parallel]     IP         : 172.199.0.12
+[parallel]     Image      : mbfuzzer-mosquitto-gcov:1.6.8
+[parallel]   container 'mosquitto-worker03-Mar-31_19-32-09' started
+[parallel]     Docker ID  : 03ad27e0b234
+[parallel]     IP         : 172.199.0.13
+[parallel]     Image      : mbfuzzer-mosquitto-gcov:1.6.8
+[parallel]   container 'mosquitto-worker01-Mar-31_19-32-09' started
+[parallel]     Docker ID  : 0d6943f4558a
+[parallel]     IP         : 172.199.0.11
+[parallel]     Image      : mbfuzzer-mosquitto-gcov:1.6.8
+[parallel]   Starting fuzz.py (timeout=1800s, container=ef4feffe81b4) ...
+[parallel]   Starting fuzz.py (timeout=1800s, container=0d6943f4558a) ...
+[parallel]   Starting fuzz.py (timeout=1800s, container=03ad27e0b234) ...
+[parallel]   fuzz.py exited (code=0, duration=1800s)
+[parallel]   Collecting gcov from 'mosquitto-worker02-Mar-31_19-32-09' (id=ef4feffe81b4)...
+[parallel]   Stopping broker to flush .gcda files...
+[parallel]   fuzz.py exited (code=0, duration=1801s)
+[parallel]   Collecting gcov from 'mosquitto-worker03-Mar-31_19-32-09' (id=03ad27e0b234)...
+[parallel]   Stopping broker to flush .gcda files...
+[parallel]   fuzz.py exited (code=0, duration=1805s)
+[parallel]   Collecting gcov from 'mosquitto-worker01-Mar-31_19-32-09' (id=0d6943f4558a)...
+[parallel]   Stopping broker to flush .gcda files...
+[parallel]   .gcda files found: 53
+[parallel]   .gcda files found: 53
+[parallel]   .gcda files found: 53
+[parallel]   gcovr collection complete → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker02/coverage/
+[parallel]   Branch coverage: 25.9% (2284/8815)
+[parallel]   Stopping container 'mosquitto-worker02-Mar-31_19-32-09' (id=ef4feffe81b4)...
+[parallel] worker02 complete ✓ (container exit=0)
+[parallel]   gcovr collection complete → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker03/coverage/
+[parallel]   Branch coverage: 26.5% (2340/8815)
+[parallel]   Stopping container 'mosquitto-worker03-Mar-31_19-32-09' (id=03ad27e0b234)...
+[parallel] worker03 complete ✓ (container exit=0)
+[parallel]   gcovr collection complete → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/worker01/coverage/
+[parallel]   Branch coverage: 25.3% (2226/8815)
+[parallel]   Stopping container 'mosquitto-worker01-Mar-31_19-32-09' (id=0d6943f4558a)...
+[parallel] worker01 complete ✓ (container exit=0)
+[parallel] 
+[parallel] ═══════════════════════════════════════════════════════════════
+[parallel] Generating Summary
+[parallel] ═══════════════════════════════════════════════════════════════
+[parallel] 
+[parallel] ┌─────────────────────────────── Results ──────────────────────────────┐
+│ Worker   │ Container ID │ Exit     │ Duration   │ Messages   │ Branch Cov   │ Line Cov     │
+[parallel] ├──────────┼──────────────┼──────────┼────────────┼────────────┼──────────────┼──────────────┤
+│ worker01 │ 0d6943f4558a │ 0        │ 1805s      │ 30239      │ 25.3%        │ 31.6%        │
+│ worker02 │ ef4feffe81b4 │ 0        │ 1800s      │ 27439      │ 25.9%        │ 32.1%        │
+│ worker03 │ 03ad27e0b234 │ 0        │ 1801s      │ 46966      │ 26.5%        │ 32.5%        │
+[parallel] └──────────┴──────────────┴──────────┴────────────┴────────────┴──────────────┴──────────────┘
+[parallel] 
+[parallel] Summary CSV   : /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/summary.csv
+[parallel] Artifact root : /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09
+[parallel] 
+[parallel] Aggregate coverage → /home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Mar-31_19-32-09/aggregate_coverage.json
+[parallel] All 3 run(s) completed successfully.

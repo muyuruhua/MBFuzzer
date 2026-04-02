@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hivemq-bridge-extension xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                         xsi:noNamespaceSchemaLocation="config.xsd">
+    <bridges>
+        <bridge>
+            <name>test-bridge</name>
+	    <remote-broker>
+		<mqtt>
+		     <clean-start>true</clean-start>
+		     <keep-alive>600</keep-alive>
+   	        </mqtt>
+                <connection>
+                    <static>
+			    <host>172.19.1.52</host>    
+			    <port>1884</port>
+                    </static>
+                </connection>
+            </remote-broker>
+            <topics>
+                <topic>
+                    <filter>topic</filter>
+                    <mode>SUB</mode>
+                </topic>
+                <topic>
+                    <filter>topic</filter>
+                    <mode>PUB</mode>
+                </topic>
+            </topics>
+        </bridge>
+    </bridges>
+</hivemq-bridge-extension>

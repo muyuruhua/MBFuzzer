@@ -1,0 +1,55 @@
+FROM ubuntu:20.04
+
+# ── NOTE: This Dockerfile is LEGACY for v2.0.18.                       ──
+# ── For new versions, use Dockerfile.mosquitto-gcov-unified instead:    ──
+# ──   docker build -f Dockerfile.mosquitto-gcov-unified \               ──
+# ──     --build-arg MOSQUITTO_VERSION=2.0.18 \                         ──
+# ──     -t mbfuzzer-mosquitto-gcov:2.0.18 .                            ──
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WORKDIR=/opt
+ENV MOSQUITTO_SRC=/opt/mosquitto-gcov
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    git \
+    python3 \
+    python3-pip \
+    xsltproc \
+    docbook-xsl \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p "$WORKDIR" && \
+    cd "$WORKDIR" && \
+    git clone --depth 1 --branch v2.0.18 \
+      https://github.com/eclipse/mosquitto.git "$MOSQUITTO_SRC"
+
+# Use cmake for consistency with ChatAFL methodology and v1.6.8 image.
+# Explicitly disable optional features to match ChatAFL's coverage scope.
+RUN cd "$MOSQUITTO_SRC" && \
+    cmake \
+      -DWITH_TLS=OFF \
+      -DWITH_PERSISTENCE=OFF \
+      -DDOCUMENTATION=OFF \
+      -DWITH_WEBSOCKETS=OFF \
+      -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+      -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+      -DCMAKE_BUILD_TYPE=Debug \
+      . && \
+    make -j"$(nproc)"
+
+# Make build tree writable so the 'nobody' user (mosquitto drops privs) can write .gcda files
+RUN chmod -R a+w "$MOSQUITTO_SRC"
+
+# Pin gcovr to 7.2 (matches v1.6.8 image; avoids gcovr 8.x Python 3.8 bug)
+RUN pip3 install --no-cache-dir 'gcovr==7.2'
+
+COPY conf/mosquitto.conf /opt/mosquitto.conf
+COPY mosquitto_gcov_collect.sh /usr/local/bin/mosquitto_gcov_collect.sh
+RUN chmod +x /usr/local/bin/mosquitto_gcov_collect.sh
+
+EXPOSE 1883
+WORKDIR /opt
+CMD ["/opt/mosquitto-gcov/src/mosquitto", "-c", "/opt/mosquitto.conf"]

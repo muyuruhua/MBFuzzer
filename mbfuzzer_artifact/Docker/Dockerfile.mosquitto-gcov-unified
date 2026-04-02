@@ -1,0 +1,123 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Dockerfile.mosquitto-gcov-unified
+#
+# Unified gcov-instrumented mosquitto image for MBFuzzer.
+# Open-Closed Principle: extend via ARG, not by modifying the Dockerfile.
+#
+# Supports any mosquitto version by parameterising MOSQUITTO_VERSION.
+# Build system is auto-selected: cmake for v1.x, make for v2.x.
+#
+# Alignment with ChatAFL benchmark/subjects/MQTT/Mosquitto/Dockerfile:
+#   • Same cmake flags (v1.x): WITH_TLS=OFF, WITH_PERSISTENCE=OFF,
+#     DOCUMENTATION=OFF, WITH_WEBSOCKETS=OFF, CMAKE_BUILD_TYPE=Debug
+#   • Same gcov flags: -fprofile-arcs -ftest-coverage
+#   • WITH_BRIDGE=ON (default; same as ChatAFL — they don't disable it)
+#
+# Difference vs ChatAFL (necessary for MBFuzzer architecture):
+#   • mosquitto.conf includes bridge connection back to host
+#   • gcovr pinned to 7.2 (ChatAFL uses 4.2; we need >=5 for JSON output,
+#     pinned to 7.2 to avoid gcovr 8.x Python 3.8 incompatibility)
+#
+# Build examples:
+#   # v1.6.8 (ChatAFL-aligned)
+#   docker build -f Dockerfile.mosquitto-gcov-unified \
+#     --build-arg MOSQUITTO_VERSION=1.6.8 \
+#     -t mbfuzzer-mosquitto-gcov:1.6.8 .
+#
+#   # v2.0.18
+#   docker build -f Dockerfile.mosquitto-gcov-unified \
+#     --build-arg MOSQUITTO_VERSION=2.0.18 \
+#     -t mbfuzzer-mosquitto-gcov:2.0.18 .
+#
+#   # Any other version
+#   docker build -f Dockerfile.mosquitto-gcov-unified \
+#     --build-arg MOSQUITTO_VERSION=2.0.20 \
+#     -t mbfuzzer-mosquitto-gcov:2.0.20 .
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Build arguments (extend without modifying) ─────────────────────────
+ARG MOSQUITTO_VERSION=1.6.8
+ARG GCOVR_VERSION=7.2
+ARG BASE_IMAGE=ubuntu:20.04
+
+FROM ${BASE_IMAGE}
+
+# Re-declare ARGs after FROM (Docker scoping rule)
+ARG MOSQUITTO_VERSION
+ARG GCOVR_VERSION
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WORKDIR=/opt
+ENV MOSQUITTO_SRC=/opt/mosquitto-gcov
+ENV MOSQUITTO_VERSION=${MOSQUITTO_VERSION}
+
+LABEL maintainer="MBFuzzer" \
+      mosquitto.version="${MOSQUITTO_VERSION}" \
+      gcovr.version="${GCOVR_VERSION}" \
+      purpose="gcov-instrumented mosquitto for branch/line coverage collection"
+
+# ─── Install dependencies ────────────────────────────────────────────────
+# Minimal set matching ChatAFL's Ubuntu 20.04 base.
+# cmake is always installed (needed for v1.x; harmless for v2.x).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    git \
+    python3 \
+    python3-pip \
+    xsltproc \
+    docbook-xsl \
+ && rm -rf /var/lib/apt/lists/*
+
+# ─── Clone mosquitto source ─────────────────────────────────────────────
+RUN cd "$WORKDIR" && \
+    git clone --depth 1 --branch "v${MOSQUITTO_VERSION}" \
+      https://github.com/eclipse/mosquitto.git "$MOSQUITTO_SRC"
+
+# ─── Build with gcov instrumentation ────────────────────────────────────
+# Auto-select build system based on version:
+#   v1.x → cmake (aligned with ChatAFL)
+#   v2.x → cmake with equivalent flags
+#
+# ChatAFL's exact gcov cmake invocation:
+#   cmake -DWITH_TLS=OFF -DWITH_PERSISTENCE=OFF \
+#         -DDOCUMENTATION=OFF -DWITH_WEBSOCKETS=OFF \
+#         -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+#         -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+#         -DCMAKE_BUILD_TYPE=Debug .
+#
+# We use cmake for all versions for consistency.
+# WITH_BRIDGE=ON (default) — same as ChatAFL (they don't disable it).
+RUN cd "$MOSQUITTO_SRC" && \
+    cmake \
+      -DWITH_TLS=OFF \
+      -DWITH_PERSISTENCE=OFF \
+      -DDOCUMENTATION=OFF \
+      -DWITH_WEBSOCKETS=OFF \
+      -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+      -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+      -DCMAKE_BUILD_TYPE=Debug \
+      . && \
+    make -j"$(nproc)"
+
+# Make build tree writable so mosquitto (which may drop privileges)
+# can write .gcda files at runtime.
+RUN chmod -R a+w "$MOSQUITTO_SRC"
+
+# ─── Install gcovr (pinned) ─────────────────────────────────────────────
+# ChatAFL uses gcovr==4.2; we use ${GCOVR_VERSION} for richer output.
+# Pin explicitly to avoid version drift breaking builds.
+RUN pip3 install --no-cache-dir "gcovr==${GCOVR_VERSION}"
+
+# ─── Copy support files ─────────────────────────────────────────────────
+COPY mosquitto_gcov_collect.sh /usr/local/bin/mosquitto_gcov_collect.sh
+RUN chmod +x /usr/local/bin/mosquitto_gcov_collect.sh
+
+# Default conf is mounted at runtime by the parallel script.
+# Ship a safe fallback (overridden by -v mount).
+COPY conf/mosquitto-v168.conf /opt/mosquitto.conf
+
+EXPOSE 1883
+WORKDIR /opt
+CMD ["/opt/mosquitto-gcov/src/mosquitto", "-c", "/opt/mosquitto.conf"]

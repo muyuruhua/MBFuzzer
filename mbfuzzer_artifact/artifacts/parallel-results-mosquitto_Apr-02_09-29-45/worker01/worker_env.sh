@@ -1,0 +1,10 @@
+export MBFUZZER_OUTPUT_DIR="/home/ckt/Documents/000_2026_test_dev/mbfuzzer_artifact/artifacts/parallel-results-mosquitto_Apr-02_09-29-45/worker01/outputs/"
+export MBFUZZER_BROKER_IP="172.199.0.11"
+export MBFUZZER_BROKER_NAME="mosquitto-worker01-Apr-02_09-29-45"
+export MBFUZZER_BROKER_PORT=1883
+export MBFUZZER_TIME_LIMIT=120
+export MBFUZZER_SINGLE_BROKER=1
+export MBFUZZER_SERVER_PORT=1884
+export MBFUZZER_CACHE_PORT=1885
+export MBFUZZER_CONNECT_TIMEOUT=5
+export MBFUZZER_RECV_TIMEOUT=0.1

@@ -1,0 +1,40 @@
+{
+  "subjects": [
+    "mosquitto"
+  ],
+  "runtime_seconds": 1800,
+  "messages_sent": 32605,
+  "paper_metric_scope": {
+    "coverage_metric": "branch coverage",
+    "coverage_value": 22.9,
+    "coverage_status": "collected via gcov/gcovr from mbfuzzer-mosquitto-gcov:2.0.18",
+    "branch_covered": 2756,
+    "branch_total": 12019,
+    "line_covered": 4366,
+    "line_total": 15129,
+    "line_percent": 28.9,
+    "memory_bug_reported": null,
+    "memory_bug_confirmed": null,
+    "memory_bug_fixed": null,
+    "non_compliance_bug_reported": null,
+    "non_compliance_bug_confirmed": null,
+    "non_compliance_bug_fixed": null
+  },
+  "local_artifacts": {
+    "crash_seed_files": 0,
+    "diff_seed_files": 0,
+    "queue_corpus_files": 16,
+    "valid_connect_seed_files": 83
+  },
+  "paper_comparability": {
+    "single_broker_mode": true,
+    "coverage_comparable": true,
+    "bug_discovery_comparable": false
+  },
+  "notes": [
+    "The paper reports messages sent, branch coverage, and unique bug discovery results.",
+    "Branch coverage collected from gcov-instrumented mosquitto 2.0.18 via gcovr 8.2.",
+    "Paper bug counts are unique reported/confirmed/fixed bugs after analysis, not raw seed-file counts.",
+    "This local run used single-broker mode, so non-compliance bug discovery is not directly comparable to the paper's six-broker differential setup."
+  ]
+}

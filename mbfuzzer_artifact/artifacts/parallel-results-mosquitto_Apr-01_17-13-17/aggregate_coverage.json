@@ -1,0 +1,31 @@
+{
+  "runs": [
+    {
+      "worker": "worker01",
+      "branch_percent": 26.3,
+      "branch_covered": 2843,
+      "branch_total": 10803,
+      "line_percent": 32.4,
+      "line_covered": 4412,
+      "line_total": 13625
+    },
+    {
+      "worker": "worker02",
+      "branch_percent": 24.9,
+      "branch_covered": 2691,
+      "branch_total": 10803,
+      "line_percent": 31.2,
+      "line_covered": 4249,
+      "line_total": 13625
+    }
+  ],
+  "aggregate": {
+    "num_runs": 2,
+    "branch_percent_mean": 25.6,
+    "branch_percent_min": 24.9,
+    "branch_percent_max": 26.3,
+    "line_percent_mean": 31.8,
+    "line_percent_min": 31.2,
+    "line_percent_max": 32.4
+  }
+}

@@ -1,0 +1,6 @@
+(INFO) Reading coverage data...
+(INFO) Writing coverage report...
+(WARNING) HTML output skipped - consider providing an output file with `--html=OUTPUT`.
+(WARNING) JSON summary output skipped - consider providing an output file with `--json-summary=OUTPUT`.
+(WARNING) Text output skipped - consider providing an output file with `--txt=OUTPUT`.
+Saved coverage artifacts (line + branch) to /coverage

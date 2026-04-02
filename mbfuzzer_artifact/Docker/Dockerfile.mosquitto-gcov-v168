@@ -1,0 +1,97 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Dockerfile.mosquitto-gcov-v168
+#
+# gcov-instrumented mosquitto v1.6.8 — aligned with ChatAFL's build config
+# for fair cross-tool branch-coverage comparison.
+#
+# Key alignment with ChatAFL benchmark/subjects/MQTT/Mosquitto/Dockerfile:
+#   • Same version: v1.6.8
+#   • Same build system: cmake
+#   • Same cmake flags: WITH_TLS=OFF, WITH_PERSISTENCE=OFF,
+#                        DOCUMENTATION=OFF, WITH_WEBSOCKETS=OFF
+#   • Same gcov flags: -fprofile-arcs -ftest-coverage
+#   • Same build type: Debug (cmake → -O0 -g)
+#
+# Difference vs ChatAFL (necessary for MBFuzzer architecture):
+#   • WITH_BRIDGE is ON (MBFuzzer uses bridge mode to communicate)
+#   • mosquitto.conf includes bridge connection back to host
+#   • gcovr upgraded to >=5.0 for --json-summary-pretty support
+#
+# Build:
+#   docker build -f Dockerfile.mosquitto-gcov-v168 \
+#                -t mbfuzzer-mosquitto-gcov:1.6.8 .
+#
+# Usage:
+#   docker run -d --name mosquitto --net mqtt_network --ip 172.199.0.11 \
+#     -v ./conf/mosquitto-v168.conf:/opt/mosquitto.conf:ro \
+#     -v ./coverage:/coverage \
+#     mbfuzzer-mosquitto-gcov:1.6.8
+# ═══════════════════════════════════════════════════════════════════════════
+
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WORKDIR=/opt
+ENV MOSQUITTO_SRC=/opt/mosquitto-gcov
+
+# ─── Install dependencies ────────────────────────────────────────────────
+# Minimal set matching ChatAFL's Ubuntu 20.04 base.
+# cmake is required (ChatAFL builds v1.6.8 with cmake, not make).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    git \
+    python3 \
+    python3-pip \
+    xsltproc \
+    docbook-xsl \
+ && rm -rf /var/lib/apt/lists/*
+
+# ─── Clone mosquitto v1.6.8 ─────────────────────────────────────────────
+RUN cd "$WORKDIR" && \
+    git clone --depth 1 --branch v1.6.8 \
+      https://github.com/eclipse/mosquitto.git "$MOSQUITTO_SRC"
+
+# ─── Build with gcov instrumentation (aligned with ChatAFL) ─────────────
+# ChatAFL's exact cmake invocation for the gcov binary:
+#   cmake -DWITH_TLS=OFF -DWITH_PERSISTENCE=OFF \
+#         -DDOCUMENTATION=OFF -DWITH_WEBSOCKETS=OFF \
+#         -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+#         -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+#         -DCMAKE_BUILD_TYPE=Debug .
+#
+# We keep WITH_BRIDGE=ON (default) because MBFuzzer requires bridge mode.
+# This adds bridge.c to the compilation units — the extra branches are
+# counted in our total but also in ChatAFL's (v1.6.8 enables bridge by
+# default in cmake as well, and ChatAFL does NOT explicitly disable it).
+RUN cd "$MOSQUITTO_SRC" && \
+    cmake \
+      -DWITH_TLS=OFF \
+      -DWITH_PERSISTENCE=OFF \
+      -DDOCUMENTATION=OFF \
+      -DWITH_WEBSOCKETS=OFF \
+      -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+      -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+      -DCMAKE_BUILD_TYPE=Debug \
+      . && \
+    make -j"$(nproc)"
+
+# Make build tree writable so the 'nobody' user (mosquitto drops privs)
+# can write .gcda files at runtime.
+RUN chmod -R a+w "$MOSQUITTO_SRC"
+
+# Upgrade gcovr for --txt, --json-summary-pretty support.
+# ChatAFL uses gcovr==4.2; we use 7.2 for richer output formats.
+# Pin to 7.2 to avoid gcovr 8.x bug with Python 3.8 on Ubuntu 20.04.
+# The branch/line counting logic is identical between versions.
+RUN pip3 install --no-cache-dir 'gcovr==7.2'
+
+# ─── Copy support files ─────────────────────────────────────────────────
+COPY conf/mosquitto-v168.conf /opt/mosquitto.conf
+COPY mosquitto_gcov_collect.sh /usr/local/bin/mosquitto_gcov_collect.sh
+RUN chmod +x /usr/local/bin/mosquitto_gcov_collect.sh
+
+EXPOSE 1883
+WORKDIR /opt
+CMD ["/opt/mosquitto-gcov/src/mosquitto", "-c", "/opt/mosquitto.conf"]

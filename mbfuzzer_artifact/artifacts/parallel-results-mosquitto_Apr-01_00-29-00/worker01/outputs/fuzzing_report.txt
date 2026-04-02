@@ -1,0 +1,27 @@
+Fuzzing Start Time: 2026-04-01 00:29:01
+Fuzzing End Time: 2026-04-01 00:44:01
+Fuzzing request number: 24536
+Crash Number: 0
+Diff Number: 0
+Duplicate Diff Number: 0
+
+Paper-aligned Local Summary:
+Subject: mosquitto-worker01-Apr-01_00-29-00
+Runtime Seconds: 900
+Messages Sent: 24536
+Coverage Metric (Paper): branch coverage
+Coverage Value: unavailable in current local run
+Memory Bug (Report/Confirmed/Fixed): unavailable from raw local artifacts
+Non-Compliance Bug (Report/Confirmed/Fixed): unavailable from raw local artifacts
+Crash Seed Files (Local): 0
+Diff Seed Files (Local): 0
+Queue Corpus Files (Local): 20
+Valid Connect Seed Files (Local): 147
+Single Broker Mode: True
+Coverage Comparable to Paper: False
+Bug Discovery Comparable to Paper: False
+Notes:
+- The paper reports messages sent, branch coverage, and unique bug discovery results.
+- Branch coverage requires a gcov-instrumented C/C++ broker build and is not collected in the current local run.
+- Paper bug counts are unique reported/confirmed/fixed bugs after analysis, not raw seed-file counts.
+- This local run used single-broker mode, so non-compliance bug discovery is not directly comparable to the paper's six-broker differential setup.
