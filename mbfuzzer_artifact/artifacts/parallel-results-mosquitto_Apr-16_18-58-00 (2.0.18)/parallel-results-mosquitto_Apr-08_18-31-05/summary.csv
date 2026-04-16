@@ -1,0 +1,6 @@
+run_index,container_name,container_id,broker_ip,server_port,cache_port,fuzz_exit_code,fuzz_duration_s,messages_sent,branch_pct,branch_covered,branch_total,line_pct,line_covered,line_total,broker_crashed
+1,mosquitto-worker01-Apr-08_18-31-05,612f95cd226d,172.199.0.11,1884,1885,0,88804,1667009,26.7,2883,10803,32.4,4413,13625,false
+2,mosquitto-worker02-Apr-08_18-31-05,a37c47ba891c,172.199.0.12,1894,1895,0,88804,1695276,25.7,2780,10803,30.9,4216,13625,false
+3,mosquitto-worker03-Apr-08_18-31-05,7a52d6fd1d5c,172.199.0.13,1904,1905,0,88803,1693570,26.3,2843,10803,31.5,4296,13625,false
+4,mosquitto-worker04-Apr-08_18-31-05,8e15644d6cd4,172.199.0.14,1914,1915,0,88803,1694296,26.5,2866,10803,32.2,4382,13625,false
+5,mosquitto-worker05-Apr-08_18-31-05,1bf4d85ace2e,172.199.0.15,1924,1925,0,88803,1599788,26.8,2892,10803,32.1,4367,13625,false

@@ -1,0 +1,81 @@
+{
+  "runs": [
+    {
+      "worker": "worker01",
+      "branch_percent": 26.7,
+      "branch_covered": 2883,
+      "branch_total": 10803,
+      "line_percent": 32.4,
+      "line_covered": 4413,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    },
+    {
+      "worker": "worker02",
+      "branch_percent": 25.7,
+      "branch_covered": 2780,
+      "branch_total": 10803,
+      "line_percent": 30.9,
+      "line_covered": 4216,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    },
+    {
+      "worker": "worker03",
+      "branch_percent": 26.3,
+      "branch_covered": 2843,
+      "branch_total": 10803,
+      "line_percent": 31.5,
+      "line_covered": 4296,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    },
+    {
+      "worker": "worker04",
+      "branch_percent": 26.5,
+      "branch_covered": 2866,
+      "branch_total": 10803,
+      "line_percent": 32.2,
+      "line_covered": 4382,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    },
+    {
+      "worker": "worker05",
+      "branch_percent": 26.8,
+      "branch_covered": 2892,
+      "branch_total": 10803,
+      "line_percent": 32.1,
+      "line_covered": 4367,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    }
+  ],
+  "aggregate": {
+    "num_runs": 5,
+    "num_broker_crashed": 0,
+    "num_broker_auto_restarted": 0,
+    "branch_percent_mean": 26.4,
+    "branch_percent_min": 25.7,
+    "branch_percent_max": 26.8,
+    "line_percent_mean": 31.82,
+    "line_percent_min": 30.9,
+    "line_percent_max": 32.4
+  },
+  "aggregate_clean": {
+    "note": "Stats excluding crashed-broker runs (if any)",
+    "num_clean_runs": 5,
+    "branch_percent_mean": 26.4,
+    "line_percent_mean": 31.82
+  }
+}
