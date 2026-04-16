@@ -1,0 +1,22 @@
+FROM mbfuzzer-mosquitto-gcov:2.0.18
+
+ENV MOSQUITTO_ASAN_SRC=/opt/mosquitto-asan
+
+RUN cp -a /opt/mosquitto-gcov "$MOSQUITTO_ASAN_SRC" && \
+        rm -f "$MOSQUITTO_ASAN_SRC"/CMakeCache.txt && \
+        find "$MOSQUITTO_ASAN_SRC" -name CMakeFiles -type d -prune -exec rm -rf {} + && \
+        cd "$MOSQUITTO_ASAN_SRC" && \
+        cmake \
+            -DWITH_TLS=OFF \
+            -DWITH_PERSISTENCE=OFF \
+            -DDOCUMENTATION=OFF \
+            -DWITH_WEBSOCKETS=OFF \
+            -DCMAKE_C_FLAGS='-fsanitize=address -fno-omit-frame-pointer -g -O1' \
+            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address' \
+            -DCMAKE_BUILD_TYPE=Debug \
+            . && \
+        make -j"$(nproc)"
+
+ENV ASAN_OPTIONS=abort_on_error=1:halt_on_error=1:detect_leaks=0:symbolize=1:fast_unwind_on_malloc=0
+ENTRYPOINT []
+CMD ["/opt/mosquitto-asan/src/mosquitto", "-c", "/opt/mosquitto.conf"]

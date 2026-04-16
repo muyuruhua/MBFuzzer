@@ -46,10 +46,24 @@ RUN chmod -R a+w "$MOSQUITTO_SRC"
 # Pin gcovr to 7.2 (matches v1.6.8 image; avoids gcovr 8.x Python 3.8 bug)
 RUN pip3 install --no-cache-dir 'gcovr==7.2'
 
+# ── gcov_flush_daemon: LD_PRELOAD library for periodic .gcda flush ────
+# Ensures coverage data is preserved even if mosquitto crashes.
+# OCP: new extension file, no original source modified.
+COPY gcov_flush_daemon.c /tmp/gcov_flush_daemon.c
+RUN gcc -shared -fPIC -pthread -O2 \
+      -o /usr/local/lib/gcov_flush_daemon.so \
+      /tmp/gcov_flush_daemon.c && \
+    rm /tmp/gcov_flush_daemon.c
+
 COPY conf/mosquitto.conf /opt/mosquitto.conf
 COPY mosquitto_gcov_collect.sh /usr/local/bin/mosquitto_gcov_collect.sh
 RUN chmod +x /usr/local/bin/mosquitto_gcov_collect.sh
 
+# ── Entrypoint wrapper: sets LD_PRELOAD then exec's mosquitto ─────────
+COPY mosquitto-gcov-entrypoint.sh /usr/local/bin/mosquitto-gcov-entrypoint.sh
+RUN chmod +x /usr/local/bin/mosquitto-gcov-entrypoint.sh
+
 EXPOSE 1883
 WORKDIR /opt
+ENTRYPOINT ["/usr/local/bin/mosquitto-gcov-entrypoint.sh"]
 CMD ["/opt/mosquitto-gcov/src/mosquitto", "-c", "/opt/mosquitto.conf"]

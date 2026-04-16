@@ -1,0 +1,45 @@
+{
+  "runs": [
+    {
+      "worker": "worker01",
+      "branch_percent": 25.0,
+      "branch_covered": 2699,
+      "branch_total": 10803,
+      "line_percent": 30.6,
+      "line_covered": 4173,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    },
+    {
+      "worker": "worker02",
+      "branch_percent": 25.1,
+      "branch_covered": 2710,
+      "branch_total": 10803,
+      "line_percent": 30.8,
+      "line_covered": 4190,
+      "line_total": 13625,
+      "broker_crashed": false,
+      "broker_restart_count": 0,
+      "coverage_note": "full"
+    }
+  ],
+  "aggregate": {
+    "num_runs": 2,
+    "num_broker_crashed": 0,
+    "num_broker_auto_restarted": 0,
+    "branch_percent_mean": 25.05,
+    "branch_percent_min": 25.0,
+    "branch_percent_max": 25.1,
+    "line_percent_mean": 30.7,
+    "line_percent_min": 30.6,
+    "line_percent_max": 30.8
+  },
+  "aggregate_clean": {
+    "note": "Stats excluding crashed-broker runs (if any)",
+    "num_clean_runs": 2,
+    "branch_percent_mean": 25.05,
+    "line_percent_mean": 30.7
+  }
+}

@@ -592,6 +592,17 @@ XMLFALLBACK
 }
 
 # ─── Collect gcov Coverage ───────────────────────────────────────────────
+# This function detects whether the broker container crashed during fuzzing
+# and adapts its collection strategy accordingly.
+#
+# If the broker crashed:
+#   - .gcda files were preserved by gcov_flush_daemon.so (LD_PRELOAD)
+#   - We restart the container to run gcovr on the surviving .gcda files
+#   - The crash is recorded in broker_crash.status for the summary report
+#
+# If the broker is still running:
+#   - We stop it gracefully (SIGTERM → atexit → .gcda flush)
+#   - Then restart for gcovr collection
 collect_gcov_coverage() {
   local container_name="$1"
   local worker_root="$2"
@@ -602,29 +613,82 @@ collect_gcov_coverage() {
     return 0
   fi
 
-  # Stop → flush gcda files, then restart to enable gcovr
   local cid_short=""
   [[ -f "${worker_root}/container.id" ]] && cid_short="$(head -c 12 "${worker_root}/container.id")"
   info "  Collecting gcov from '${container_name}' (id=${cid_short})..."
 
-  # Stop → flush gcda files, then restart to enable gcovr
-  info "  Stopping broker to flush .gcda files..."
-  docker stop -t 15 "${container_name}" >/dev/null 2>&1 || true
-  sleep 2
-  docker start "${container_name}" >/dev/null 2>&1 || true
-  sleep 2
+  # ── Step 1: Detect container state BEFORE stopping ─────────────────
+  local container_running="unknown"
+  local container_exit_code="unknown"
+  local broker_crashed="false"
+  local broker_restart_count=0
 
-  # Count gcda files
+  container_running="$(docker inspect "${container_name}" \
+    --format='{{.State.Running}}' 2>/dev/null)" || container_running="unknown"
+  container_exit_code="$(docker inspect "${container_name}" \
+    --format='{{.State.ExitCode}}' 2>/dev/null)" || container_exit_code="unknown"
+
+  if [[ "${container_running}" == "false" ]]; then
+    # Container already stopped → broker crashed beyond max restarts
+    broker_crashed="true"
+    local oom_killed=""
+    oom_killed="$(docker inspect "${container_name}" \
+      --format='{{.State.OOMKilled}}' 2>/dev/null)" || oom_killed="unknown"
+    warn "  Broker CRASHED (container exited: code=${container_exit_code}, OOMKilled=${oom_killed})"
+    warn "  Coverage relies on gcov_flush_daemon.so periodic .gcda writes"
+    info "  Restarting container for gcovr collection..."
+    docker start "${container_name}" >/dev/null 2>&1 || true
+    sleep 2
+  else
+    # Container still running → graceful stop to trigger atexit .gcda flush
+    info "  Stopping broker to flush .gcda files..."
+    docker stop -t 15 "${container_name}" >/dev/null 2>&1 || true
+    sleep 2
+    docker start "${container_name}" >/dev/null 2>&1 || true
+    sleep 2
+  fi
+
+  # ── Step 1b: Detect auto-restarted crashes (entrypoint supervisor) ──
+  local restart_log="${worker_root}/coverage/broker_restarts.log"
+  if [[ -f "${restart_log}" ]] && [[ -s "${restart_log}" ]]; then
+    broker_restart_count="$(wc -l < "${restart_log}" | tr -d ' ')"
+    if (( broker_restart_count > 0 )); then
+      broker_crashed="true"
+      # Capture the FIRST crash exit code (most relevant for diagnosis)
+      if [[ "${container_exit_code}" == "unknown" ]] || [[ "${container_exit_code}" == "0" ]]; then
+        container_exit_code="$(head -1 "${restart_log}" | grep -oP 'exit_code=\K[0-9]+' 2>/dev/null)" || true
+      fi
+      warn "  Broker crashed ${broker_restart_count} time(s) during fuzzing (auto-restarted by entrypoint)"
+      while IFS= read -r _logline; do
+        warn "    ${_logline}"
+      done < "${restart_log}"
+    fi
+  fi
+
+  # Record crash status for summary report
+  echo "${broker_crashed}" > "${worker_root}/broker_crash.status"
+  echo "${container_exit_code}" > "${worker_root}/broker_exit_code"
+  echo "${broker_restart_count}" > "${worker_root}/broker_restart_count"
+
+  # ── Step 2: Count .gcda files ──────────────────────────────────────
   local gcda_count
   gcda_count="$(docker exec "${container_name}" \
     find /opt/mosquitto-gcov -name '*.gcda' -type f 2>/dev/null | wc -l)" || true
   info "  .gcda files found: ${gcda_count}"
 
   if (( gcda_count == 0 )); then
-    warn "  No .gcda files in '${container_name}'; coverage may be empty"
+    if [[ "${broker_crashed}" == "true" ]]; then
+      warn "  No .gcda files despite crash — gcov_flush_daemon.so may not be loaded (old image?)"
+    else
+      warn "  No .gcda files in '${container_name}'; coverage may be empty"
+    fi
+  elif [[ "${broker_crashed}" == "true" ]] && (( broker_restart_count > 0 )); then
+    info "  ✓ gcov_flush_daemon.so preserved ${gcda_count} .gcda files (auto-restarted ${broker_restart_count}×)"
+  elif [[ "${broker_crashed}" == "true" ]]; then
+    info "  ✓ gcov_flush_daemon.so preserved ${gcda_count} .gcda files after crash"
   fi
 
-  # Run gcovr via the bundled script
+  # ── Step 3: Run gcovr ──────────────────────────────────────────────
   if docker exec "${container_name}" test -x /usr/local/bin/mosquitto_gcov_collect.sh; then
     docker exec "${container_name}" /usr/local/bin/mosquitto_gcov_collect.sh \
       > "${coverage_dir}/gcovr.log" 2>&1 || true
@@ -646,7 +710,13 @@ collect_gcov_coverage() {
     branch_pct="$(python3 -c "import json; d=json.load(open('${summary_json}')); print(d.get('branch_percent', 'N/A'))" 2>/dev/null)" || branch_pct="N/A"
     branch_covered="$(python3 -c "import json; d=json.load(open('${summary_json}')); print(d.get('branch_covered', 'N/A'))" 2>/dev/null)" || branch_covered="N/A"
     branch_total="$(python3 -c "import json; d=json.load(open('${summary_json}')); print(d.get('branch_total', 'N/A'))" 2>/dev/null)" || branch_total="N/A"
-    info "  Branch coverage: ${branch_pct}% (${branch_covered}/${branch_total})"
+    if [[ "${broker_crashed}" == "true" ]] && (( broker_restart_count > 0 )); then
+      info "  Branch coverage (broker auto-restarted ${broker_restart_count}×): ${branch_pct}% (${branch_covered}/${branch_total})"
+    elif [[ "${broker_crashed}" == "true" ]]; then
+      info "  Branch coverage (partial—from flush daemon): ${branch_pct}% (${branch_covered}/${branch_total})"
+    else
+      info "  Branch coverage: ${branch_pct}% (${branch_covered}/${branch_total})"
+    fi
   fi
 }
 
@@ -794,7 +864,7 @@ info "Generating Summary"
 info "═══════════════════════════════════════════════════════════════"
 
 SUMMARY_CSV="${PARALLEL_ROOT}/summary.csv"
-printf 'run_index,container_name,container_id,broker_ip,server_port,cache_port,fuzz_exit_code,fuzz_duration_s,messages_sent,branch_pct,branch_covered,branch_total,line_pct,line_covered,line_total\n' \
+printf 'run_index,container_name,container_id,broker_ip,server_port,cache_port,fuzz_exit_code,fuzz_duration_s,messages_sent,branch_pct,branch_covered,branch_total,line_pct,line_covered,line_total,broker_crashed\n' \
   > "${SUMMARY_CSV}"
 
 overall_status=0
@@ -852,21 +922,26 @@ for (( idx = 1; idx <= RUN_COUNT; idx++ )); do
   container_id="N/A"
   [[ -f "${worker_root}/container.id" ]] && container_id="$(head -c 12 "${worker_root}/container.id")"
 
-  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+  # Read broker crash status
+  broker_crashed="false"
+  [[ -f "${worker_root}/broker_crash.status" ]] && broker_crashed="$(<"${worker_root}/broker_crash.status")"
+
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
     "${idx}" "${container_name}" "${container_id}" "${broker_ip}" \
     "${server_port}" "${cache_port}" "${fuzz_exit}" \
     "${fuzz_duration}" "${messages_sent}" \
     "${branch_pct}" "${branch_covered}" "${branch_total}" \
     "${line_pct}" "${line_covered}" "${line_total}" \
+    "${broker_crashed}" \
     >> "${SUMMARY_CSV}"
 done
 
 # ─── Pretty-Print Summary ───────────────────────────────────────────────
 info ""
-info "┌─────────────────────────────── Results ──────────────────────────────┐"
-printf "│ %-8s │ %-12s │ %-8s │ %-10s │ %-10s │ %-12s │ %-12s │\n" \
-  "Worker" "Container ID" "Exit" "Duration" "Messages" "Branch Cov" "Line Cov"
-info "├──────────┼──────────────┼──────────┼────────────┼────────────┼──────────────┼──────────────┤"
+info "┌──────────────────────────────────── Results ─────────────────────────────────────┐"
+printf "│ %-8s │ %-12s │ %-8s │ %-10s │ %-10s │ %-12s │ %-12s │ %-9s │\n" \
+  "Worker" "Container ID" "Exit" "Duration" "Messages" "Branch Cov" "Line Cov" "Broker"
+info "├──────────┼──────────────┼──────────┼────────────┼────────────┼──────────────┼──────────────┼───────────┤"
 
 for (( idx = 1; idx <= RUN_COUNT; idx++ )); do
   worker_label="worker$(printf '%02d' "${idx}")"
@@ -908,12 +983,19 @@ print(f\"{d.get('line_percent','?')}%\")
 " 2>/dev/null)" || true
   fi
 
-  printf "│ %-8s │ %-12s │ %-8s │ %-10s │ %-10s │ %-12s │ %-12s │\n" \
+  # Read broker crash status
+  broker_status="ok"
+  if [[ -f "${worker_root}/broker_crash.status" ]]; then
+    _crashed="$(<"${worker_root}/broker_crash.status")"
+    [[ "${_crashed}" == "true" ]] && broker_status="CRASHED"
+  fi
+
+  printf "│ %-8s │ %-12s │ %-8s │ %-10s │ %-10s │ %-12s │ %-12s │ %-9s │\n" \
     "${worker_label}" "${cid_display}" "${fuzz_exit}" "${fuzz_duration}" \
-    "${messages_sent}" "${branch_str}" "${line_str}"
+    "${messages_sent}" "${branch_str}" "${line_str}" "${broker_status}"
 done
 
-info "└──────────┴──────────────┴──────────┴────────────┴────────────┴──────────────┴──────────────┘"
+info "└──────────┴──────────────┴──────────┴────────────┴────────────┴──────────────┴──────────────┴───────────┘"
 info ""
 info "Summary CSV   : ${SUMMARY_CSV}"
 info "Artifact root : ${PARALLEL_ROOT}"
@@ -964,6 +1046,28 @@ for cov_dir in worker_dirs:
     if d is None:
         continue
     worker = os.path.basename(os.path.dirname(cov_dir))
+    worker_root = os.path.dirname(cov_dir)
+    # Read broker crash status
+    crash_status_file = os.path.join(worker_root, "broker_crash.status")
+    broker_crashed = False
+    if os.path.isfile(crash_status_file):
+        with open(crash_status_file) as cf:
+            broker_crashed = cf.read().strip() == "true"
+    # Read broker restart count (from entrypoint supervisor)
+    restart_count_file = os.path.join(worker_root, "broker_restart_count")
+    broker_restart_count = 0
+    if os.path.isfile(restart_count_file):
+        try:
+            broker_restart_count = int(open(restart_count_file).read().strip())
+        except (ValueError, OSError):
+            pass
+    # Determine coverage note
+    if broker_crashed and broker_restart_count > 0:
+        cov_note = f"auto-restarted {broker_restart_count}x (coverage accumulated)"
+    elif broker_crashed:
+        cov_note = "partial (from flush daemon)"
+    else:
+        cov_note = "full"
     runs.append({
         "worker": worker,
         "branch_percent": d.get("branch_percent"),
@@ -972,6 +1076,9 @@ for cov_dir in worker_dirs:
         "line_percent": d.get("line_percent"),
         "line_covered": d.get("line_covered"),
         "line_total": d.get("line_total"),
+        "broker_crashed": broker_crashed,
+        "broker_restart_count": broker_restart_count,
+        "coverage_note": cov_note,
     })
 
 if not runs:
@@ -980,17 +1087,35 @@ if not runs:
 
 branch_pcts = [r["branch_percent"] for r in runs if r["branch_percent"] is not None]
 line_pcts = [r["line_percent"] for r in runs if r["line_percent"] is not None]
+# Separate non-crashed runs for clean aggregate stats
+# NOTE: auto-restarted runs (broker_restart_count > 0) have accumulated coverage
+# and are included in clean stats.  Only "dead crashed" runs (broker crashed
+# without restart — max restarts exceeded or no supervisor) are excluded.
+clean_branch = [r["branch_percent"] for r in runs if r["branch_percent"] is not None
+                and (not r.get("broker_crashed") or r.get("broker_restart_count", 0) > 0)]
+clean_line = [r["line_percent"] for r in runs if r["line_percent"] is not None
+              and (not r.get("broker_crashed") or r.get("broker_restart_count", 0) > 0)]
+num_crashed = sum(1 for r in runs if r.get("broker_crashed"))
+num_restarted = sum(1 for r in runs if r.get("broker_restart_count", 0) > 0)
 
 agg = {
     "runs": runs,
     "aggregate": {
         "num_runs": len(runs),
+        "num_broker_crashed": num_crashed,
+        "num_broker_auto_restarted": num_restarted,
         "branch_percent_mean": round(sum(branch_pcts) / len(branch_pcts), 2) if branch_pcts else None,
         "branch_percent_min": min(branch_pcts) if branch_pcts else None,
         "branch_percent_max": max(branch_pcts) if branch_pcts else None,
         "line_percent_mean": round(sum(line_pcts) / len(line_pcts), 2) if line_pcts else None,
         "line_percent_min": min(line_pcts) if line_pcts else None,
         "line_percent_max": max(line_pcts) if line_pcts else None,
+    },
+    "aggregate_clean": {
+        "note": "Stats excluding crashed-broker runs (if any)",
+        "num_clean_runs": len(clean_branch),
+        "branch_percent_mean": round(sum(clean_branch) / len(clean_branch), 2) if clean_branch else None,
+        "line_percent_mean": round(sum(clean_line) / len(clean_line), 2) if clean_line else None,
     },
 }
 

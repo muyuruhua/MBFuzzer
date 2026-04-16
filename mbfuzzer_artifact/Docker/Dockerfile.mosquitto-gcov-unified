@@ -4,12 +4,14 @@
 # Unified gcov-instrumented mosquitto image for MBFuzzer.
 # Open-Closed Principle: extend via ARG, not by modifying the Dockerfile.
 #
-# Supports any mosquitto version by parameterising MOSQUITTO_VERSION.
-# Build system is auto-selected: cmake for v1.x, make for v2.x.
+# Supports mosquitto v1.x, v2.0.x, and v2.1.x via MOSQUITTO_VERSION ARG.
+# cmake is used for all versions; v2.1.x needs cmake >= 3.18 (installed via pip).
 #
-# Alignment with ChatAFL benchmark/subjects/MQTT/Mosquitto/Dockerfile:
-#   • Same cmake flags (v1.x): WITH_TLS=OFF, WITH_PERSISTENCE=OFF,
+# Alignment with ChatAFL benchmark/subjects/MQTT/Mosquitto*/Dockerfile:
+#   • v1.x / v2.0.x flags: WITH_TLS=OFF, WITH_PERSISTENCE=OFF,
 #     DOCUMENTATION=OFF, WITH_WEBSOCKETS=OFF, CMAKE_BUILD_TYPE=Debug
+#   • v2.1.x flags add: WITH_DOCS=OFF (replaces DOCUMENTATION),
+#     WITH_LTO=OFF, WITH_TESTS=OFF, WITH_CTRL_SHELL=OFF, WITH_PLUGINS=OFF
 #   • Same gcov flags: -fprofile-arcs -ftest-coverage
 #   • WITH_BRIDGE=ON (default; same as ChatAFL — they don't disable it)
 #
@@ -29,10 +31,10 @@
 #     --build-arg MOSQUITTO_VERSION=2.0.18 \
 #     -t mbfuzzer-mosquitto-gcov:2.0.18 .
 #
-#   # Any other version
+#   # v2.1.2 (cmake >= 3.18, WITH_PLUGINS=OFF, etc. — auto-handled)
 #   docker build -f Dockerfile.mosquitto-gcov-unified \
-#     --build-arg MOSQUITTO_VERSION=2.0.20 \
-#     -t mbfuzzer-mosquitto-gcov:2.0.20 .
+#     --build-arg MOSQUITTO_VERSION=2.1.2 \
+#     -t mbfuzzer-mosquitto-gcov:2.1.2 .
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ─── Build arguments (extend without modifying) ─────────────────────────
@@ -70,35 +72,63 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     docbook-xsl \
  && rm -rf /var/lib/apt/lists/*
 
+# ─── Extra deps for v2.1.x ─────────────────────────────────────────────
+# libcjson-dev: required by mosquitto >= 2.1.0 (was bundled in 2.0.x)
+# cmake >= 3.18: Ubuntu 20.04 apt ships 3.16.3; pip3 cmake overrides it.
+RUN if dpkg --compare-versions "${MOSQUITTO_VERSION}" ge "2.1"; then \
+      apt-get update && apt-get install -y --no-install-recommends libcjson-dev \
+        && rm -rf /var/lib/apt/lists/* \
+        && pip3 install --no-cache-dir cmake; \
+    fi
+
 # ─── Clone mosquitto source ─────────────────────────────────────────────
+# v2.1+ moved to github.com/eclipse-mosquitto; older versions use eclipse.
 RUN cd "$WORKDIR" && \
-    git clone --depth 1 --branch "v${MOSQUITTO_VERSION}" \
-      https://github.com/eclipse/mosquitto.git "$MOSQUITTO_SRC"
+    if dpkg --compare-versions "${MOSQUITTO_VERSION}" ge "2.1"; then \
+      REPO_URL="https://github.com/eclipse-mosquitto/mosquitto.git"; \
+    else \
+      REPO_URL="https://github.com/eclipse/mosquitto.git"; \
+    fi && \
+    git clone --depth 1 --branch "v${MOSQUITTO_VERSION}" "$REPO_URL" "$MOSQUITTO_SRC"
 
 # ─── Build with gcov instrumentation ────────────────────────────────────
-# Auto-select build system based on version:
-#   v1.x → cmake (aligned with ChatAFL)
-#   v2.x → cmake with equivalent flags
+# cmake for all versions.  WITH_BRIDGE=ON (default, same as ChatAFL).
 #
-# ChatAFL's exact gcov cmake invocation:
-#   cmake -DWITH_TLS=OFF -DWITH_PERSISTENCE=OFF \
-#         -DDOCUMENTATION=OFF -DWITH_WEBSOCKETS=OFF \
-#         -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
-#         -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
-#         -DCMAKE_BUILD_TYPE=Debug .
+# v1.x / v2.0.x (ChatAFL Mosquitto/Dockerfile):
+#   cmake -DWITH_TLS=OFF -DWITH_PERSISTENCE=OFF -DDOCUMENTATION=OFF
+#         -DWITH_WEBSOCKETS=OFF  ...
 #
-# We use cmake for all versions for consistency.
-# WITH_BRIDGE=ON (default) — same as ChatAFL (they don't disable it).
+# v2.1.x (ChatAFL Mosquitto-v2.1.2/Dockerfile):
+#   -DWITH_DOCS=OFF        (replaces -DDOCUMENTATION=OFF)
+#   -DWITH_LTO=OFF         (new; must disable for gcov compatibility)
+#   -DWITH_TESTS=OFF       (new; avoids GTest dependency)
+#   -DWITH_CTRL_SHELL=OFF  (new; avoids readline/libedit dependency)
+#   -DWITH_PLUGINS=OFF     (new; avoids SQLite3 dependency)
 RUN cd "$MOSQUITTO_SRC" && \
-    cmake \
-      -DWITH_TLS=OFF \
-      -DWITH_PERSISTENCE=OFF \
-      -DDOCUMENTATION=OFF \
-      -DWITH_WEBSOCKETS=OFF \
-      -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
-      -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
-      -DCMAKE_BUILD_TYPE=Debug \
-      . && \
+    if dpkg --compare-versions "${MOSQUITTO_VERSION}" ge "2.1"; then \
+      cmake \
+        -DWITH_TLS=OFF \
+        -DWITH_DOCS=OFF \
+        -DWITH_WEBSOCKETS=OFF \
+        -DWITH_LTO=OFF \
+        -DWITH_TESTS=OFF \
+        -DWITH_CTRL_SHELL=OFF \
+        -DWITH_PLUGINS=OFF \
+        -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+        -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+        -DCMAKE_BUILD_TYPE=Debug \
+        . ; \
+    else \
+      cmake \
+        -DWITH_TLS=OFF \
+        -DWITH_PERSISTENCE=OFF \
+        -DDOCUMENTATION=OFF \
+        -DWITH_WEBSOCKETS=OFF \
+        -DCMAKE_C_FLAGS="-fprofile-arcs -ftest-coverage" \
+        -DCMAKE_EXE_LINKER_FLAGS="-fprofile-arcs -ftest-coverage" \
+        -DCMAKE_BUILD_TYPE=Debug \
+        . ; \
+    fi && \
     make -j"$(nproc)"
 
 # Make build tree writable so mosquitto (which may drop privileges)
